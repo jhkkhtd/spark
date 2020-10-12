@@ -28,12 +28,12 @@ private[columnar] trait ColumnBuilder {
   /**
    * Initializes with an approximate lower bound on the expected number of elements in this column.
    */
-  def initialize(initialSize: Int, columnName: String = "", useCompression: Boolean = false)
+  def initialize(initialSize: Int, columnName: String = "", useCompression: Boolean = false): Unit
 
   /**
    * Appends `row(ordinal)` to the column builder.
    */
-  def appendFrom(row: InternalRow, ordinal: Int)
+  def appendFrom(row: InternalRow, ordinal: Int): Unit
 
   /**
    * Column statistics information
@@ -125,6 +125,9 @@ class StringColumnBuilder extends NativeColumnBuilder(new StringColumnStats, STR
 private[columnar]
 class BinaryColumnBuilder extends ComplexColumnBuilder(new BinaryColumnStats, BINARY)
 
+private[columnar]
+class IntervalColumnBuilder extends ComplexColumnBuilder(new IntervalColumnStats, CALENDAR_INTERVAL)
+
 private[columnar] class CompactDecimalColumnBuilder(dataType: DecimalType)
   extends NativeColumnBuilder(new DecimalColumnStats(dataType), COMPACT_DECIMAL(dataType))
 
@@ -176,6 +179,7 @@ private[columnar] object ColumnBuilder {
       case DoubleType => new DoubleColumnBuilder
       case StringType => new StringColumnBuilder
       case BinaryType => new BinaryColumnBuilder
+      case CalendarIntervalType => new IntervalColumnBuilder
       case dt: DecimalType if dt.precision <= Decimal.MAX_LONG_DIGITS =>
         new CompactDecimalColumnBuilder(dt)
       case dt: DecimalType => new DecimalColumnBuilder(dt)
@@ -185,7 +189,7 @@ private[columnar] object ColumnBuilder {
       case udt: UserDefinedType[_] =>
         return apply(udt.sqlType, initialSize, columnName, useCompression)
       case other =>
-        throw new Exception(s"not suppported type: $other")
+        throw new Exception(s"not supported type: $other")
     }
 
     builder.initialize(initialSize, columnName, useCompression)

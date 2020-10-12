@@ -15,12 +15,11 @@
 # limitations under the License.
 #
 
-import numpy
-from numpy import array
+import sys
+
 from collections import namedtuple
 
-from pyspark import SparkContext, since
-from pyspark.rdd import ignore_unicode_prefix
+from pyspark import since
 from pyspark.mllib.common import JavaModelWrapper, callMLlibFunc
 from pyspark.mllib.util import JavaSaveable, JavaLoader, inherit_doc
 
@@ -28,11 +27,8 @@ __all__ = ['FPGrowth', 'FPGrowthModel', 'PrefixSpan', 'PrefixSpanModel']
 
 
 @inherit_doc
-@ignore_unicode_prefix
 class FPGrowthModel(JavaModelWrapper, JavaSaveable, JavaLoader):
     """
-    .. note:: Experimental
-
     A FP-Growth model for mining frequent itemsets
     using the Parallel FP-Growth algorithm.
 
@@ -40,7 +36,7 @@ class FPGrowthModel(JavaModelWrapper, JavaSaveable, JavaLoader):
     >>> rdd = sc.parallelize(data, 2)
     >>> model = FPGrowth.train(rdd, 0.6, 2)
     >>> sorted(model.freqItemsets().collect())
-    [FreqItemset(items=[u'a'], freq=4), FreqItemset(items=[u'c'], freq=3), ...
+    [FreqItemset(items=['a'], freq=4), FreqItemset(items=['c'], freq=3), ...
     >>> model_path = temp_path + "/fpm"
     >>> model.save(sc, model_path)
     >>> sameModel = FPGrowthModel.load(sc, model_path)
@@ -64,14 +60,12 @@ class FPGrowthModel(JavaModelWrapper, JavaSaveable, JavaLoader):
         Load a model from the given path.
         """
         model = cls._load_java(sc, path)
-        wrapper = sc._jvm.FPGrowthModelWrapper(model)
+        wrapper = sc._jvm.org.apache.spark.mllib.api.python.FPGrowthModelWrapper(model)
         return FPGrowthModel(wrapper)
 
 
 class FPGrowth(object):
     """
-    .. note:: Experimental
-
     A Parallel FP-growth algorithm to mine frequent itemsets.
 
     .. versionadded:: 1.4.0
@@ -105,11 +99,8 @@ class FPGrowth(object):
 
 
 @inherit_doc
-@ignore_unicode_prefix
 class PrefixSpanModel(JavaModelWrapper):
     """
-    .. note:: Experimental
-
     Model fitted by PrefixSpan
 
     >>> data = [
@@ -120,7 +111,7 @@ class PrefixSpanModel(JavaModelWrapper):
     >>> rdd = sc.parallelize(data, 2)
     >>> model = PrefixSpan.train(rdd)
     >>> sorted(model.freqSequences().collect())
-    [FreqSequence(sequence=[[u'a']], freq=3), FreqSequence(sequence=[[u'a'], [u'a']], freq=1), ...
+    [FreqSequence(sequence=[['a']], freq=3), FreqSequence(sequence=[['a'], ['a']], freq=1), ...
 
     .. versionadded:: 1.6.0
     """
@@ -133,12 +124,10 @@ class PrefixSpanModel(JavaModelWrapper):
 
 class PrefixSpan(object):
     """
-    .. note:: Experimental
-
     A parallel PrefixSpan algorithm to mine frequent sequential patterns.
     The PrefixSpan algorithm is described in J. Pei, et al., PrefixSpan:
     Mining Sequential Patterns Efficiently by Prefix-Projected Pattern Growth
-    ([[http://doi.org/10.1109/ICDE.2001.914830]]).
+    ([[https://doi.org/10.1109/ICDE.2001.914830]]).
 
     .. versionadded:: 1.6.0
     """
@@ -183,16 +172,21 @@ class PrefixSpan(object):
 
 def _test():
     import doctest
+    from pyspark.sql import SparkSession
     import pyspark.mllib.fpm
     globs = pyspark.mllib.fpm.__dict__.copy()
-    globs['sc'] = SparkContext('local[4]', 'PythonTest')
+    spark = SparkSession.builder\
+        .master("local[4]")\
+        .appName("mllib.fpm tests")\
+        .getOrCreate()
+    globs['sc'] = spark.sparkContext
     import tempfile
 
     temp_path = tempfile.mkdtemp()
     globs['temp_path'] = temp_path
     try:
         (failure_count, test_count) = doctest.testmod(globs=globs, optionflags=doctest.ELLIPSIS)
-        globs['sc'].stop()
+        spark.stop()
     finally:
         from shutil import rmtree
         try:
@@ -200,7 +194,7 @@ def _test():
         except OSError:
             pass
     if failure_count:
-        exit(-1)
+        sys.exit(-1)
 
 
 if __name__ == "__main__":

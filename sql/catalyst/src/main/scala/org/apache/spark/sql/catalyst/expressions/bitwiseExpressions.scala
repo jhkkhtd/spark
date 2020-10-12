@@ -26,6 +26,14 @@ import org.apache.spark.sql.types._
  *
  * Code generation inherited from BinaryArithmetic.
  */
+@ExpressionDescription(
+  usage = "expr1 _FUNC_ expr2 - Returns the result of bitwise AND of `expr1` and `expr2`.",
+  examples = """
+    Examples:
+      > SELECT 3 _FUNC_ 5;
+       1
+  """,
+  since = "1.4.0")
 case class BitwiseAnd(left: Expression, right: Expression) extends BinaryArithmetic {
 
   override def inputType: AbstractDataType = IntegralType
@@ -51,6 +59,14 @@ case class BitwiseAnd(left: Expression, right: Expression) extends BinaryArithme
  *
  * Code generation inherited from BinaryArithmetic.
  */
+@ExpressionDescription(
+  usage = "expr1 _FUNC_ expr2 - Returns the result of bitwise OR of `expr1` and `expr2`.",
+  examples = """
+    Examples:
+      > SELECT 3 _FUNC_ 5;
+       7
+  """,
+  since = "1.4.0")
 case class BitwiseOr(left: Expression, right: Expression) extends BinaryArithmetic {
 
   override def inputType: AbstractDataType = IntegralType
@@ -72,10 +88,18 @@ case class BitwiseOr(left: Expression, right: Expression) extends BinaryArithmet
 }
 
 /**
- * A function that calculates bitwise xor of two numbers.
+ * A function that calculates bitwise xor({@literal ^}) of two numbers.
  *
  * Code generation inherited from BinaryArithmetic.
  */
+@ExpressionDescription(
+  usage = "expr1 _FUNC_ expr2 - Returns the result of bitwise exclusive OR of `expr1` and `expr2`.",
+  examples = """
+    Examples:
+      > SELECT 3 _FUNC_ 5;
+       6
+  """,
+  since = "1.4.0")
 case class BitwiseXor(left: Expression, right: Expression) extends BinaryArithmetic {
 
   override def inputType: AbstractDataType = IntegralType
@@ -99,7 +123,16 @@ case class BitwiseXor(left: Expression, right: Expression) extends BinaryArithme
 /**
  * A function that calculates bitwise not(~) of a number.
  */
-case class BitwiseNot(child: Expression) extends UnaryExpression with ExpectsInputTypes {
+@ExpressionDescription(
+  usage = "_FUNC_ expr - Returns the result of bitwise NOT of `expr`.",
+  examples = """
+    Examples:
+      > SELECT _FUNC_ 0;
+       -1
+  """,
+  since = "1.4.0")
+case class BitwiseNot(child: Expression)
+  extends UnaryExpression with ExpectsInputTypes with NullIntolerant {
 
   override def inputTypes: Seq[AbstractDataType] = Seq(IntegralType)
 
@@ -118,11 +151,45 @@ case class BitwiseNot(child: Expression) extends UnaryExpression with ExpectsInp
       ((evalE: Long) => ~evalE).asInstanceOf[(Any) => Any]
   }
 
-  override def genCode(ctx: CodegenContext, ev: ExprCode): String = {
-    defineCodeGen(ctx, ev, c => s"(${ctx.javaType(dataType)}) ~($c)")
+  override def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = {
+    defineCodeGen(ctx, ev, c => s"(${CodeGenerator.javaType(dataType)}) ~($c)")
   }
 
   protected override def nullSafeEval(input: Any): Any = not(input)
 
   override def sql: String = s"~${child.sql}"
+}
+
+@ExpressionDescription(
+  usage = "_FUNC_(expr) - Returns the number of bits that are set in the argument expr as an" +
+    " unsigned 64-bit integer, or NULL if the argument is NULL.",
+  examples = """
+    Examples:
+      > SELECT _FUNC_(0);
+       0
+  """,
+  since = "3.0.0")
+case class BitwiseCount(child: Expression)
+  extends UnaryExpression with ExpectsInputTypes with NullIntolerant {
+
+  override def inputTypes: Seq[AbstractDataType] = Seq(TypeCollection(IntegralType, BooleanType))
+
+  override def dataType: DataType = IntegerType
+
+  override def toString: String = s"bit_count($child)"
+
+  override def prettyName: String = "bit_count"
+
+  override def doGenCode(ctx: CodegenContext, ev: ExprCode): ExprCode = child.dataType match {
+    case BooleanType => defineCodeGen(ctx, ev, c => s"if ($c) 1 else 0")
+    case _ => defineCodeGen(ctx, ev, c => s"java.lang.Long.bitCount($c)")
+  }
+
+  protected override def nullSafeEval(input: Any): Any = child.dataType match {
+    case BooleanType => if (input.asInstanceOf[Boolean]) 1 else 0
+    case ByteType => java.lang.Long.bitCount(input.asInstanceOf[Byte])
+    case ShortType => java.lang.Long.bitCount(input.asInstanceOf[Short])
+    case IntegerType => java.lang.Long.bitCount(input.asInstanceOf[Int])
+    case LongType => java.lang.Long.bitCount(input.asInstanceOf[Long])
+  }
 }
